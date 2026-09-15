@@ -3,11 +3,118 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal ShortKeep - Online</title>
+    <title>UltraShort Keep - Firebase</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     
-    <!-- Library Enkripsi -->
+    <!-- Firebase SDK (Versi 9 - Modular) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, get, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        // --- KONFIGURASI FIREBASE (DARI USER) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBmmOJue97ewmU5XIoObY6Os22lrPKIcL8",
+            authDomain: "torataro.firebaseapp.com",
+            databaseURL: "https://torataro-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "torataro",
+            storageBucket: "torataro.firebasestorage.app",
+            messagingSenderId: "357999678278",
+            appId: "1:357999678278:web:d7a4dcc62519fe45d88b47",
+            measurementId: "G-92WXGNGBSN"
+        };
+
+        // Inisialisasi Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Expose functions ke window agar bisa dipanggil dari HTML biasa
+        window.fbSaveData = async function(text, pass, days) {
+            try {
+                // 1. Enkripsi (Jika ada password)
+                let finalContent = text;
+                if(pass) {
+                    // Menggunakan CryptoJS (harus load di luar module script karena librarynya non-module)
+                    finalContent = CryptoJS.AES.encrypt(text, pass).toString();
+                }
+
+                // 2. Hitung Kedaluwarsa
+                const now = new Date();
+                const expiryDate = new Date(now.getTime() + (days * 24 * 60 * 60 * 1000));
+
+                // 3. Generate Short ID & Cek Unik
+                let shortCode = generateShortId(5);
+                let codeExists = true;
+                
+                // Loop sampai dapat kode yang unik di database
+                while(codeExists) {
+                    const snapshot = await get(ref(db, 'codes/' + shortCode));
+                    if (snapshot.exists()) {
+                        shortCode = generateShortId(6); // Coba panjang 6 jika 5 ada
+                    } else {
+                        codeExists = false;
+                    }
+                }
+
+                // 4. Simpan ke Firebase
+                // Struktur: codes/A1B2 = { content: "...", expiry: "...", hasPass: true/false }
+                await set(ref(db, 'codes/' + shortCode), {
+                    content: finalContent,
+                    expiry: expiryDate.getTime(), // Simpan timestamp
+                    hasPass: !!pass
+                });
+
+                return { success: true, code: shortCode };
+
+            } catch (error) {
+                console.error(error);
+                return { success: false, message: "Gagal menyimpan: " + error.message };
+            }
+        };
+
+        window.fbLoadData = async function(code, pass) {
+            try {
+                // 1. Ambil data langsung berdasarkan kode (Sangat Cepat!)
+                const snapshot = await get(ref(db, 'codes/' + code));
+
+                if (!snapshot.exists()) {
+                    return { success: false, message: "Kode tidak ditemukan atau sudah dihapus." };
+                }
+
+                const data = snapshot.val();
+                const now = new Date().getTime();
+
+                // 2. Cek Kedaluwarsa
+                if (now > data.expiry) {
+                    // Hapus data kadaluarsa agar bersih
+                    await remove(ref(db, 'codes/' + code));
+                    return { success: false, message: "Data SUDAH KEDALUWARSA." };
+                }
+
+                // 3. Cek Password & Dekripsi
+                let finalText = "";
+                if(data.hasPass) {
+                    if(!pass) return { success: false, message: "Data ini diproteksi password." };
+
+                    const bytes = CryptoJS.AES.decrypt(data.content, pass);
+                    finalText = bytes.toString(CryptoJS.enc.Utf8);
+
+                    if(!finalText) return { success: false, message: "Password SALAH!" };
+                } else {
+                    finalText = data.content;
+                }
+
+                return { success: true, text: finalText };
+
+            } catch (error) {
+                console.error(error);
+                return { success: false, message: "Gagal mengambil data." };
+            }
+        };
+
+    </script>
+
+    <!-- Library Enkripsi (CryptoJS) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
     <style>
@@ -52,15 +159,16 @@
             cursor: pointer; font-size: 1rem; transition: 0.2s;
         }
         .btn:hover { background: #1D4ED8; transform: translateY(-2px); }
-        .btn:disabled { background: #94A3B8; cursor: not-allowed; }
+        .btn:disabled { background: #94A3B8; cursor: not-allowed; transform: none; }
 
         .result {
             display: none; margin-top: 1.5rem; padding: 1.5rem; background: #EFF6FF;
             border-radius: 12px; text-align: center; border: 2px dashed #BFDBFE;
+            animation: fadeIn 0.3s;
         }
         .short-code {
-            font-family: monospace; font-size: 2rem; font-weight: 800; color: var(--primary);
-            letter-spacing: 2px; margin: 0.5rem 0; cursor: pointer; user-select: all;
+            font-family: monospace; font-size: 2.5rem; font-weight: 800; color: var(--primary);
+            letter-spacing: 4px; margin: 1rem 0; cursor: pointer; user-select: all; text-transform: uppercase;
         }
 
         /* Tabs */
@@ -72,37 +180,26 @@
         .tab.active { background: white; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 
         .toast {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-            background: #334155; color: white; padding: 12px 24px; border-radius: 50px;
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px);
+            background: #1F2937; color: white; padding: 12px 24px; border-radius: 50px;
             opacity: 0; pointer-events: none; transition: 0.3s; z-index: 100;
         }
-        .toast.show { opacity: 1; transform: translateX(-50%) translateY(-10px); }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
         .toast.error { background: #EF4444; }
-        
+
         .loading-spinner {
-            display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3);
+            display: inline-block; width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.3);
             border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; margin-right: 8px;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* API Key Box */
-        .api-box {
-            background: #FFF7ED; border: 1px solid #FED7AA; color: #9A3412;
-            padding: 10px; border-radius: 8px; font-size: 0.8rem; margin-bottom: 1rem;
-            text-align: center;
-        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>Universal Keep</h1>
-        <p class="subtitle">Bisa dibuka di device manapun (Online).</p>
-
-        <!-- Konfigurasi API Key (PENTING!) -->
-        <div class="api-box">
-            <strong>PENTING:</strong> Pastikan API Key JSONBin sudah dimasukkan di kode script (baris paling bawah) agar fitur ini bekerja.
-        </div>
+        <h1>UltraShort Keep</h1>
+        <p class="subtitle">Disimpan di Cloud Firebase (Super Cepat).</p>
 
         <div class="tabs">
             <div class="tab active" onclick="switchTab('save')">Simpan</div>
@@ -111,7 +208,7 @@
 
         <!-- TAB SIMPAN -->
         <div id="tab-save">
-            <textarea id="inputText" placeholder="Tulis teks di sini..."></textarea>
+            <textarea id="inputText" placeholder="Tulis teks panjang di sini..."></textarea>
             <input type="password" id="passInput" placeholder="Password (Opsional)">
             
             <select id="expirySelect">
@@ -120,28 +217,28 @@
                 <option value="30">Kedaluwarsa dalam 30 Hari</option>
             </select>
 
-            <button class="btn" id="saveBtn" onclick="saveData()">Generate Kode (Upload)</button>
+            <button class="btn" id="saveBtn" onclick="handleSave()">Generate Kode (Upload)</button>
             
             <div id="saveResult" class="result">
-                <p>Ini Kode Data Anda:</p>
+                <p>Berhasil disimpan! Kode Anda:</p>
                 <div class="short-code" onclick="copyCode()" id="displayCode">...</div>
-                <p style="font-size: 0.8rem; color: #64748B;">Klik kode untuk menyalin</p>
+                <p style="font-size: 0.85rem; color: #64748B;">Klik kode di atas untuk menyalin</p>
             </div>
         </div>
 
         <!-- TAB BUKA -->
         <div id="tab-open" style="display: none;">
             <input type="text" id="inputCode" placeholder="Masukkan Kode Pendek (Misal: A1B2)" 
-                   style="text-align:center; font-size:1.2rem; letter-spacing:2px;">
+                   style="text-align:center; font-size:1.4rem; letter-spacing:2px; text-transform:uppercase;">
             
             <div id="openPassGroup" style="display: none;">
                 <input type="password" id="openPass" placeholder="Masukkan Password">
             </div>
 
-            <button class="btn" id="openBtn" onclick="loadData()">Buka Data (Download)</button>
+            <button class="btn" id="openBtn" onclick="handleLoad()">Buka Data</button>
 
             <div id="openResult" class="result" style="text-align: left; background: #F0FDF4; border-color: #86EFAC;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px; align-items:center;">
                     <strong style="color: #166534;">Berhasil Dibuka!</strong>
                     <button onclick="downloadOpenData()" style="background:none; border:none; color:var(--primary); cursor:pointer; font-weight:600;">Download</button>
                 </div>
@@ -153,23 +250,8 @@
     <div id="toast" class="toast">Notifikasi</div>
 
     <script>
-        // ================================================================
-        // KONFIGURASI API KEY (WAJIB DIISI)
-        // ================================================================
-        // Ganti teks di bawah ini dengan API Key dari https://jsonbin.io
-        // Contoh: '$2a$10$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-        const MASTER_KEY = '$2a$10$oaVO3gDxKs9xBHOA9BLNn.NNleoEiO7/qC97OItfJDMAtq9yywd9m'; 
-        
-        // ================================================================
-        
-        // Base URL JSONBin
-        const BIN_URL = 'https://api.jsonbin.io/v3/b';
-        const COMMON_HEADERS = {
-            'Content-Type': 'application/json',
-            'X-Master-Key': MASTER_KEY
-        };
+        // --- LOGIKA UI (TIDAK PERLU DIUBAH) ---
 
-        // --- GENERATOR ID PENDEK ---
         function generateShortId(length = 5) {
             const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
             let result = '';
@@ -179,167 +261,59 @@
             return result;
         }
 
-        // --- SIMPAN DATA (UPLOAD KE CLOUD) ---
-        async function saveData() {
+        async function handleSave() {
             const text = document.getElementById('inputText').value;
             const pass = document.getElementById('passInput').value;
             const days = parseInt(document.getElementById('expirySelect').value);
             const btn = document.getElementById('saveBtn');
 
             if(!text.trim()) return showToast("Teks kosong!", true);
-            if(MASTER_KEY === 'MASUKKAN_API_KEY_DISINI') return alert("ERROR: Anda belum memasukkan API Key di dalam kode HTML!");
-
             setLoading(btn, true);
 
-            try {
-                // 1. Enkripsi (Jika ada password)
-                let finalContent = text;
-                if(pass) {
-                    finalContent = CryptoJS.AES.encrypt(text, pass).toString();
-                }
+            // Panggil fungsi Firebase dari module script
+            const result = await window.fbSaveData(text, pass, days);
 
-                // 2. Hitung Kedaluwarsa
-                const now = new Date();
-                const expiryDate = new Date(now.getTime() + (days * 24 * 60 * 60 * 1000));
-
-                // 3. Generate Short ID
-                let shortCode = generateShortId(5);
-
-                // 4. Upload ke JSONBin
-                const payload = {
-                    data: finalContent,
-                    expiry: expiryDate.toISOString(),
-                    hasPass: !!pass
-                };
-
-                // Kita buat bin baru
-                const response = await fetch(`${BIN_URL}`, {
-                    method: 'POST',
-                    headers: COMMON_HEADERS,
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) throw new Error('Gagal upload ke cloud');
-
-                const jsonResponse = await response.json();
-                const binId = jsonResponse.metadata.id; // Ini ID panjang dari JSONBin, misal: 63d4a...
-
-                // 5. Simpan Mapping ID Pendek -> ID Panjang di LocalStorage Kita
-                // Ini triknya: Kita simpan ID Panjang (Key asli cloud) di device kita dengan Key Pendek.
-                // TAPI masalahnya: Device lain tidak punya mapping ini.
-                
-                // SOLUSI: Kita simpan ID Pendek sebagai Nama Bin di JSONBin (Custom Metadata)
-                // Karena JSONBin membatasi custom name, kita gunakan cara "Reverse Lookup".
-                
-                // CARA PALING AMPUH TANPA SERVER SENDIRI:
-                // Kita simpan data langsung dengan ID Pendek? Tidak bisa, JSONBin ID random.
-                // Kita upload data, lalu UPDATE metadata bin tersebut dengan nama = shortCode.
-                
-                await fetch(`${BIN_URL}/${binId}/meta`, {
-                    method: 'PUT',
-                    headers: COMMON_HEADERS,
-                    body: JSON.stringify({ name: shortCode })
-                });
-
-                // Tampilkan Kode Pendek
-                document.getElementById('displayCode').textContent = shortCode;
+            if(result.success) {
+                document.getElementById('displayCode').textContent = result.code;
                 document.getElementById('saveResult').style.display = 'block';
-                showToast("Berhasil diupload ke Cloud!");
-
-            } catch (e) {
-                console.error(e);
-                showToast("Gagal menyimpan. Cek API Key.", true);
-            } finally {
-                setLoading(btn, false);
+                showToast("Berhasil disimpan!");
+            } else {
+                showToast(result.message, true);
             }
+            setLoading(btn, false);
         }
 
-        // --- BUKA DATA (DOWNLOAD DARI CLOUD) ---
-        async function loadData() {
+        async function handleLoad() {
             const code = document.getElementById('inputCode').value.trim();
             const pass = document.getElementById('openPass').value;
             const btn = document.getElementById('openBtn');
 
             if(!code) return showToast("Masukkan kode!", true);
-
             setLoading(btn, true);
 
-            try {
-                // 1. Cari Bin berdasarkan Nama (Short Code)
-                // JSONBin mendukung query /b?meta=true
-                const response = await fetch(`${BIN_URL}?meta=true`, {
-                    method: 'GET',
-                    headers: COMMON_HEADERS
-                });
+            // Panggil fungsi Firebase
+            const result = await window.fbLoadData(code, pass);
 
-                if (!response.ok) throw new Error('Gagal koneksi ke cloud');
-
-                const bins = await response.json();
-                
-                // Cari bin yang namanya sama dengan shortCode
-                const targetBin = bins.find(b => b.metadata && b.metadata.name === code);
-
-                if (!targetBin) {
-                    showToast("Kode tidak ditemukan.", true);
-                    return;
-                }
-
-                // 2. Ambil Detail Data
-                const binId = targetBin.metadata.id;
-                const dataResponse = await fetch(`${BIN_URL}/${binId}/latest`, {
-                    method: 'GET',
-                    headers: COMMON_HEADERS
-                });
-
-                const dataContent = await dataResponse.json();
-                const record = dataContent.record;
-
-                // 3. Cek Kedaluwarsa
-                const expiryDate = new Date(record.expiry);
-                if (new Date() > expiryDate) {
-                    showToast("Data SUDAH KEDALUWARSA.", true);
-                    // Opsional: Hapus bin
-                    await fetch(`${BIN_URL}/${binId}`, { method: 'DELETE', headers: COMMON_HEADERS });
-                    return;
-                }
-
-                // 4. Cek Password & Dekripsi
-                let finalText = "";
-                if(record.hasPass) {
-                    document.getElementById('openPassGroup').style.display = 'block';
-                    if(!pass) {
-                        showToast("Masukkan password!", true);
-                        return;
-                    }
-                    
-                    const bytes = CryptoJS.AES.decrypt(record.data, pass);
-                    finalText = bytes.toString(CryptoJS.enc.Utf8);
-
-                    if(!finalText) {
-                        showToast("Password SALAH!", true);
-                        return;
-                    }
-                } else {
-                    finalText = record.data;
-                }
-
-                // 5. Tampilkan
-                document.getElementById('outputText').value = finalText;
+            if(result.success) {
+                document.getElementById('outputText').value = result.text;
                 document.getElementById('openResult').style.display = 'block';
-
-            } catch (e) {
-                console.error(e);
-                showToast("Gagal membuka data.", true);
-            } finally {
-                setLoading(btn, false);
+            } else {
+                if(result.message.includes("password")) {
+                    document.getElementById('openPassGroup').style.display = 'block';
+                    document.getElementById('openPass').focus();
+                }
+                showToast(result.message, true);
             }
+            setLoading(btn, false);
         }
 
-        // --- UTILITIES ---
         function switchTab(tab) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('#tab-save, #tab-open').forEach(d => d.style.display = 'none');
-            
+            document.getElementById('saveResult').style.display = 'none';
+            document.getElementById('openResult').style.display = 'none';
+            document.getElementById('openPassGroup').style.display = 'none';
+
             if(tab === 'save') {
                 document.querySelector('.tab:nth-child(1)').classList.add('active');
                 document.getElementById('tab-save').style.display = 'block';
@@ -360,7 +334,7 @@
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `data-${Date.now()}.txt`;
+            a.download = `firebase-data-${Date.now()}.txt`;
             a.click();
         }
 
@@ -376,11 +350,10 @@
                 btn.innerHTML = `<div class="loading-spinner"></div> Memproses...`;
                 btn.disabled = true;
             } else {
-                btn.innerHTML = btn.id === 'saveBtn' ? 'Generate Kode (Upload)' : 'Buka Data (Download)';
+                btn.innerHTML = btn.id === 'saveBtn' ? 'Generate Kode (Upload)' : 'Buka Data';
                 btn.disabled = false;
             }
         }
-
     </script>
 </body>
 </html>
