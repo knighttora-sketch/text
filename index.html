@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TextKeep - Simpan & Bagikan Teks</title>
+    <!-- Menggunakan Font Inter dari Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Menggunakan Library LZString untuk kompresi data agar muat di URL -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #4F46E5; /* Indigo 600 */
+            --primary-hover: #4338ca; /* Indigo 700 */
+            --bg-color: #F3F4F6;
+            --card-bg: #ffffff;
+            --text-main: #1F2937;
+            --text-muted: #6B7280;
+            --border-color: #E5E7EB;
+            --success-color: #10B981;
+            --error-color: #EF4444;
+            --radius: 12px;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* Container Utama */
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            transition: transform 0.3s ease;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        /* Area Teks */
+        .editor-wrapper {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 1rem;
+            font-size: 1rem;
+            line-height: 1.5;
+            color: var(--text-main);
+            border: 2px solid var(--border-color);
+            border-radius: var(--radius);
+            resize: vertical;
+            outline: none;
+            font-family: 'Inter', monospace; /* Monospace agar teks rapi */
+            transition: border-color 0.2s, box-shadow 0.2s;
+            background-color: #FAFAFA;
+        }
+
+        textarea:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+            background-color: #fff;
+        }
+
+        textarea::placeholder {
+            color: #9CA3AF;
+        }
+
+        /* Mode Baca (Read Only) */
+        textarea.readonly-mode {
+            background-color: #F9FAFB;
+            border-color: transparent;
+            color: #374151;
+            pointer-events: none; /* Tidak bisa diedit saat mode baca */
+        }
+
+        /* Tombol Aksi */
+        .action-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: var(--radius);
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+            flex: 1;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background-color: white;
+            border: 2px solid var(--border-color);
+            color: var(--text-main);
+        }
+
+        .btn-secondary:hover {
+            background-color: #F9FAFB;
+            border-color: #D1D5DB;
+        }
+
+        .btn-copy {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .btn-copy:hover {
+            background-color: #059669;
+        }
+
+        /* Output Link Area */
+        #link-result {
+            display: none; /* Tersembunyi default */
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background-color: #EEF2FF;
+            border: 1px solid #C7D2FE;
+            border-radius: var(--radius);
+            animation: fadeIn 0.4s ease;
+        }
+
+        .link-label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .link-box {
+            display: flex;
+            gap: 8px;
+        }
+
+        .url-display {
+            flex: 1;
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: white;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-family: monospace;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background-color: #1F2937;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success { background-color: var(--success-color); }
+        .toast.error { background-color: var(--error-color); }
+
+        /* Footer */
+        footer {
+            margin-top: 2rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        /* Animasi */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* SVG Icons styling */
+        .icon {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 480px) {
+            .container {
+                padding: 1.5rem;
+            }
+            .link-box {
+                flex-direction: column;
+            }
+            .url-display {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Main Application -->
+    <main class="container">
+        <header>
+            <h1>
+                <!-- Icon Note -->
+                <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                TextKeep
+            </h1>
+            <p id="app-desc">Tulis catatan Anda dan dapatkan link untuk membagikannya.</p>
+        </header>
+
+        <section class="editor-wrapper">
+            <textarea id="textInput" placeholder="Ketik atau tempel teks Anda di sini..."></textarea>
+        </section>
+
+        <div class="action-group">
+            <button id="saveBtn" class="btn-primary">
+                <!-- Icon Save/Share -->
+                <svg class="icon" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
+                Simpan & Buat Link
+            </button>
+            <button id="clearBtn" class="btn-secondary" aria-label="Hapus teks">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+        </div>
+
+        <!-- Bagian Result Link (Muncul setelah save) -->
+        <section id="link-result">
+            <span class="link-label">Link Siap Dibagikan:</span>
+            <div class="link-box">
+                <input type="text" id="outputUrl" class="url-display" readonly>
+                <button id="copyBtn" class="btn-copy">
+                    <svg class="icon" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                    Salin
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Data tersimpan aman di dalam URL (Client-side).</p>
+    </footer>
+
+    <!-- Toast Notification Element -->
+    <div id="toast" class="toast">Pesan notifikasi</div>
+
+    <script>
+        // DOM Elements
+        const textInput = document.getElementById('textInput');
+        const saveBtn = document.getElementById('saveBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const linkResult = document.getElementById('link-result');
+        const outputUrl = document.getElementById('outputUrl');
+        const appDesc = document.getElementById('app-desc');
+        const toast = document.getElementById('toast');
+
+        // Fungsi Menampilkan Toast
+        function showToast(message, type = 'default') {
+            toast.textContent = message;
+            toast.className = 'toast show';
+            
+            if (type === 'success') toast.classList.add('success');
+            if (type === 'error') toast.classList.add('error');
+
+            // Reset setelah 3 detik
+            setTimeout(() => {
+                toast.className = 'toast';
+            }, 3000);
+        }
+
+        // Fungsi Utama: Membuat Link dari Teks (Save)
+        saveBtn.addEventListener('click', () => {
+            const text = textInput.value;
+
+            if (!text.trim()) {
+                showToast("Teks masih kosong!", "error");
+                textInput.focus();
+                return;
+            }
+
+            try {
+                // 1. Kompresi teks menggunakan LZString agar karakter berkurang drastis
+                // Ini penting agar URL tidak terlalu panjang
+                const compressedText = LZString.compressToEncodedURIComponent(text);
+
+                // 2. Buat URL baru dengan hash (#)
+                const newUrl = `${window.location.origin}${window.location.pathname}#${compressedText}`;
+
+                // 3. Tampilkan hasil
+                outputUrl.value = newUrl;
+                linkResult.style.display = 'block';
+                
+                showToast("Teks berhasil disimpan!", "success");
+                
+                // Scroll ke bawah sedikit agar user melihat link
+                linkResult.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+            } catch (error) {
+                console.error(error);
+                showToast("Gagal memproses teks.", "error");
+            }
+        });
+
+        // Fungsi Load Teks dari URL (Saat pertama kali buka)
+        function loadTextFromHash() {
+            const hash = window.location.hash.substring(1); // Hapus tanda #
+
+            if (hash) {
+                try {
+                    // Dekompresi teks dari hash
+                    const decompressedText = LZString.decompressFromEncodedURIComponent(hash);
+
+                    if (decompressedText) {
+                        textInput.value = decompressedText;
+                        textInput.classList.add('readonly-mode');
+                        
+                        // Ubah UI menjadi mode "View"
+                        appDesc.textContent = "Anda sedang melihat teks yang dibagikan.";
+                        saveBtn.style.display = 'none'; // Sembunyikan tombol save
+                        clearBtn.innerHTML = `
+                            <svg class="icon" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                            Buat Baru
+                        `;
+                        
+                        // Saat tombol clear diklik di mode view, reload halaman bersih
+                        clearBtn.onclick = () => {
+                            window.location.href = window.location.pathname; // Hapus hash
+                        };
+                    } else {
+                        // Jika hash rusak/invalid
+                        showToast("Link tidak valid atau kadaluarsa.", "error");
+                    }
+                } catch (e) {
+                    showToast("Gagal memuat teks.", "error");
+                }
+            }
+        }
+
+        // Fungsi Tombol Salin
+        copyBtn.addEventListener('click', () => {
+            outputUrl.select();
+            outputUrl.setSelectionRange(0, 99999); // Untuk mobile
+
+            navigator.clipboard.writeText(outputUrl.value).then(() => {
+                showToast("Link berhasil disalin!", "success");
+            }).catch(err => {
+                showToast("Gagal menyalin link.", "error");
+            });
+        });
+
+        // Fungsi Tombol Clear (Mode Edit Default)
+        clearBtn.addEventListener('click', () => {
+            if(confirm("Hapus semua teks?")) {
+                textInput.value = '';
+                linkResult.style.display = 'none';
+                textInput.focus();
+            }
+        });
+
+        // Jalankan pengecekan URL saat halaman dimuat
+        window.addEventListener('DOMContentLoaded', loadTextFromHash);
+
+    </script>
+</body>
+</html>
