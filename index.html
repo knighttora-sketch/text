@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UltraShort Keep - Firebase</title>
+    <title>UltraShort Keep - Admin</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     
-    <!-- Firebase SDK (Versi 9 - Modular) -->
+    <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getDatabase, ref, set, get, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getDatabase, ref, set, get, remove, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-        // --- KONFIGURASI FIREBASE (DARI USER) ---
         const firebaseConfig = {
             apiKey: "AIzaSyBmmOJue97ewmU5XIoObY6Os22lrPKIcL8",
             authDomain: "torataro.firebaseapp.com",
@@ -24,102 +23,105 @@
             measurementId: "G-92WXGNGBSN"
         };
 
-        // Inisialisasi Firebase
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // Expose functions ke window agar bisa dipanggil dari HTML biasa
+        // --- FUNGSI USER ---
         window.fbSaveData = async function(text, pass, days) {
             try {
-                // 1. Enkripsi (Jika ada password)
                 let finalContent = text;
-                if(pass) {
-                    // Menggunakan CryptoJS (harus load di luar module script karena librarynya non-module)
-                    finalContent = CryptoJS.AES.encrypt(text, pass).toString();
-                }
+                if(pass) finalContent = CryptoJS.AES.encrypt(text, pass).toString();
 
-                // 2. Hitung Kedaluwarsa
                 const now = new Date();
                 const expiryDate = new Date(now.getTime() + (days * 24 * 60 * 60 * 1000));
 
-                // 3. Generate Short ID & Cek Unik
                 let shortCode = generateShortId(5);
                 let codeExists = true;
                 
-                // Loop sampai dapat kode yang unik di database
                 while(codeExists) {
                     const snapshot = await get(ref(db, 'codes/' + shortCode));
                     if (snapshot.exists()) {
-                        shortCode = generateShortId(6); // Coba panjang 6 jika 5 ada
+                        shortCode = generateShortId(6);
                     } else {
                         codeExists = false;
                     }
                 }
 
-                // 4. Simpan ke Firebase
-                // Struktur: codes/A1B2 = { content: "...", expiry: "...", hasPass: true/false }
                 await set(ref(db, 'codes/' + shortCode), {
                     content: finalContent,
-                    expiry: expiryDate.getTime(), // Simpan timestamp
+                    expiry: expiryDate.getTime(),
                     hasPass: !!pass
                 });
 
                 return { success: true, code: shortCode };
-
             } catch (error) {
-                console.error(error);
                 return { success: false, message: "Gagal menyimpan: " + error.message };
             }
         };
 
         window.fbLoadData = async function(code, pass) {
             try {
-                // 1. Ambil data langsung berdasarkan kode (Sangat Cepat!)
                 const snapshot = await get(ref(db, 'codes/' + code));
-
-                if (!snapshot.exists()) {
-                    return { success: false, message: "Kode tidak ditemukan atau sudah dihapus." };
-                }
+                if (!snapshot.exists()) return { success: false, message: "Kode tidak ditemukan." };
 
                 const data = snapshot.val();
                 const now = new Date().getTime();
 
-                // 2. Cek Kedaluwarsa
                 if (now > data.expiry) {
-                    // Hapus data kadaluarsa agar bersih
                     await remove(ref(db, 'codes/' + code));
                     return { success: false, message: "Data SUDAH KEDALUWARSA." };
                 }
 
-                // 3. Cek Password & Dekripsi
                 let finalText = "";
                 if(data.hasPass) {
                     if(!pass) return { success: false, message: "Data ini diproteksi password." };
-
                     const bytes = CryptoJS.AES.decrypt(data.content, pass);
                     finalText = bytes.toString(CryptoJS.enc.Utf8);
-
                     if(!finalText) return { success: false, message: "Password SALAH!" };
                 } else {
                     finalText = data.content;
                 }
-
                 return { success: true, text: finalText };
-
             } catch (error) {
-                console.error(error);
                 return { success: false, message: "Gagal mengambil data." };
+            }
+        };
+
+        // --- FUNGSI ADMIN ---
+        // 1. Hitung Jumlah Data
+        window.fbGetStats = async function() {
+            try {
+                const snapshot = await get(ref(db, 'codes'));
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    return Object.keys(data).length;
+                }
+                return 0;
+            } catch (e) {
+                console.error(e);
+                return -1;
+            }
+        };
+
+        // 2. Hapus Semua Data (Nuclear)
+        window.fbNukeAll = async function() {
+            try {
+                // Hapus seluruh node 'codes'
+                await remove(ref(db, 'codes'));
+                return { success: true };
+            } catch (error) {
+                return { success: false, message: error.message };
             }
         };
 
     </script>
 
-    <!-- Library Enkripsi (CryptoJS) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
     <style>
         :root {
             --primary: #2563EB;
+            --danger: #EF4444;
             --bg: #F8FAFC;
             --card: #FFFFFF;
             --text: #0F172A;
@@ -137,56 +139,66 @@
             border-radius: 16px; box-shadow: 0 10px 30px -10px rgba(0,0,0,0.1);
         }
 
-        h1 { text-align: center; margin-bottom: 0.5rem; color: var(--primary); }
+        h1 { text-align: center; margin-bottom: 0.5rem; color: var(--primary); cursor: pointer; user-select: none; transition: 0.2s; }
+        h1:active { transform: scale(0.95); } /* Efek klik */
         .subtitle { text-align: center; color: #64748B; font-size: 0.9rem; margin-bottom: 1.5rem; }
 
         textarea {
             width: 100%; height: 120px; padding: 1rem; border: 2px solid var(--border);
-            border-radius: 12px; font-family: inherit; resize: vertical; transition: 0.2s;
-            margin-bottom: 1rem;
+            border-radius: 12px; font-family: inherit; resize: vertical; margin-bottom: 1rem;
         }
-        textarea:focus { border-color: var(--primary); }
-
         input, select {
-            width: 100%; padding: 1rem; border: 2px solid var(--border); border-radius: 12px;
-            margin-bottom: 1rem; font-family: inherit; font-size: 1rem;
+            width: 100%; padding: 1rem; border: 2px solid var(--border); border-radius: 12px; margin-bottom: 1rem;
         }
-        input:focus { border-color: var(--primary); }
+        input:focus, textarea:focus { border-color: var(--primary); }
 
         .btn {
             width: 100%; padding: 1rem; border: none; border-radius: 12px;
-            background: var(--primary); color: white; font-weight: 700;
-            cursor: pointer; font-size: 1rem; transition: 0.2s;
+            background: var(--primary); color: white; font-weight: 700; cursor: pointer; transition: 0.2s;
         }
-        .btn:hover { background: #1D4ED8; transform: translateY(-2px); }
-        .btn:disabled { background: #94A3B8; cursor: not-allowed; transform: none; }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { background: #94A3B8; cursor: not-allowed; }
+        .btn-danger { background: var(--danger); }
+        .btn-danger:hover { background: #DC2626; }
 
         .result {
             display: none; margin-top: 1.5rem; padding: 1.5rem; background: #EFF6FF;
-            border-radius: 12px; text-align: center; border: 2px dashed #BFDBFE;
-            animation: fadeIn 0.3s;
+            border-radius: 12px; text-align: center; border: 2px dashed #BFDBFE; animation: fadeIn 0.3s;
         }
         .short-code {
             font-family: monospace; font-size: 2.5rem; font-weight: 800; color: var(--primary);
             letter-spacing: 4px; margin: 1rem 0; cursor: pointer; user-select: all; text-transform: uppercase;
         }
 
-        /* Tabs */
         .tabs { display: flex; margin-bottom: 1.5rem; background: #F1F5F9; padding: 4px; border-radius: 10px; }
         .tab {
             flex: 1; padding: 10px; text-align: center; cursor: pointer; border-radius: 8px;
             font-weight: 600; color: #64748B; transition: 0.2s;
         }
-        .tab.active { background: white; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .tab.active { background: white; color: var(--primary); }
+
+        /* Admin Modal */
+        #admin-modal {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+            z-index: 1000; align-items: center; justify-content: center;
+        }
+        .modal-card {
+            background: white; padding: 2rem; border-radius: 16px; width: 90%; max-width: 400px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+        }
+        .stat-box {
+            background: #F1F5F9; padding: 1rem; border-radius: 8px; text-align: center; margin: 1rem 0;
+        }
+        .stat-number { font-size: 2rem; font-weight: 800; color: var(--primary); }
 
         .toast {
             position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px);
             background: #1F2937; color: white; padding: 12px 24px; border-radius: 50px;
-            opacity: 0; pointer-events: none; transition: 0.3s; z-index: 100;
+            opacity: 0; pointer-events: none; transition: 0.3s; z-index: 2000;
         }
         .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-        .toast.error { background: #EF4444; }
-
+        .toast.error { background: var(--danger); }
+        
         .loading-spinner {
             display: inline-block; width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.3);
             border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; margin-right: 8px;
@@ -198,8 +210,9 @@
 <body>
 
     <div class="container">
-        <h1>UltraShort Keep</h1>
-        <p class="subtitle">Disimpan di Cloud Firebase (Super Cepat).</p>
+        <!-- Judul Bisa Diklik 5x untuk Admin -->
+        <h1 id="appTitle" onclick="checkAdminClick()">UltraShort Keep</h1>
+        <p class="subtitle">Klik judul 5x untuk Admin</p>
 
         <div class="tabs">
             <div class="tab active" onclick="switchTab('save')">Simpan</div>
@@ -228,8 +241,7 @@
 
         <!-- TAB BUKA -->
         <div id="tab-open" style="display: none;">
-            <input type="text" id="inputCode" placeholder="Masukkan Kode Pendek (Misal: A1B2)" 
-                   style="text-align:center; font-size:1.4rem; letter-spacing:2px; text-transform:uppercase;">
+            <input type="text" id="inputCode" placeholder="Masukkan Kode Pendek" style="text-align:center; text-transform:uppercase;">
             
             <div id="openPassGroup" style="display: none;">
                 <input type="password" id="openPass" placeholder="Masukkan Password">
@@ -238,7 +250,7 @@
             <button class="btn" id="openBtn" onclick="handleLoad()">Buka Data</button>
 
             <div id="openResult" class="result" style="text-align: left; background: #F0FDF4; border-color: #86EFAC;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:10px; align-items:center;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
                     <strong style="color: #166534;">Berhasil Dibuka!</strong>
                     <button onclick="downloadOpenData()" style="background:none; border:none; color:var(--primary); cursor:pointer; font-weight:600;">Download</button>
                 </div>
@@ -247,11 +259,102 @@
         </div>
     </div>
 
+    <!-- MODAL ADMIN -->
+    <div id="admin-modal">
+        <div class="modal-card">
+            <h2 style="margin-bottom:1rem; color:var(--primary);">Menu Admin</h2>
+            
+            <div id="admin-login-view">
+                <p style="margin-bottom:1rem; font-size:0.9rem;">Masukkan kata kunci admin:</p>
+                <input type="password" id="adminPass" placeholder="Kata Kunci">
+                <button class="btn" onclick="loginAdmin()">Masuk</button>
+                <button class="btn btn-secondary" onclick="closeAdmin()" style="background:transparent; color:#64748B; margin-top:10px; border:none;">Batal</button>
+            </div>
+
+            <div id="admin-dashboard-view" style="display:none;">
+                <div class="stat-box">
+                    <p style="font-size:0.8rem; color:#64748B;">TOTAL DATA TERSIMPAN</p>
+                    <div class="stat-number" id="totalDataCount">0</div>
+                </div>
+
+                <button class="btn" onclick="refreshStats()" style="margin-bottom:10px;">Refresh Stats</button>
+                <button class="btn btn-danger" onclick="confirmNuke()">HAPUS SEMUA DATA</button>
+                <button class="btn" onclick="closeAdmin()" style="background:transparent; color:#64748B; margin-top:10px; border:1px solid var(--border);">Keluar</button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast" class="toast">Notifikasi</div>
 
     <script>
-        // --- LOGIKA UI (TIDAK PERLU DIUBAH) ---
+        // --- KONFIGURASI ADMIN ---
+        const ADMIN_SECRET_KEY = "master123"; // GANTI INI JIKA INGIN KATA KUNCI LAIN
+        let clickCount = 0;
+        let clickTimer;
 
+        // --- LOGIKA ADMIN CLICK ---
+        function checkAdminClick() {
+            clickCount++;
+            
+            // Reset counter jika user berhenti klik selama 1 detik
+            clearTimeout(clickTimer);
+            clickTimer = setTimeout(() => { clickCount = 0; }, 1000);
+
+            if (clickCount >= 5) {
+                clickCount = 0;
+                document.getElementById('admin-modal').style.display = 'flex';
+                document.getElementById('admin-login-view').style.display = 'block';
+                document.getElementById('admin-dashboard-view').style.display = 'none';
+                document.getElementById('adminPass').value = '';
+            }
+        }
+
+        function closeAdmin() {
+            document.getElementById('admin-modal').style.display = 'none';
+        }
+
+        async function loginAdmin() {
+            const input = document.getElementById('adminPass').value;
+            if (input === ADMIN_SECRET_KEY) {
+                document.getElementById('admin-login-view').style.display = 'none';
+                document.getElementById('admin-dashboard-view').style.display = 'block';
+                await refreshStats();
+            } else {
+                showToast("Kata kunci salah!", true);
+            }
+        }
+
+        async function refreshStats() {
+            const count = await window.fbGetStats();
+            document.getElementById('totalDataCount').textContent = count;
+        }
+
+        function confirmNuke() {
+            if(confirm("PERINGATAN: Anda akan MENGHAPUS SEMUA DATA di Firebase.\n\nTindakan ini TIDAK BISA dibatalkan!\n\nLanjutkan?")) {
+                performNuke();
+            }
+        }
+
+        async function performNuke() {
+            const btn = document.querySelector('.btn-danger');
+            const originalText = btn.textContent;
+            btn.textContent = "Menghapus...";
+            btn.disabled = true;
+
+            const result = await window.fbNukeAll();
+
+            if(result.success) {
+                showToast("Semua data berhasil dihapus!");
+                await refreshStats();
+            } else {
+                showToast("Gagal menghapus: " + result.message, true);
+            }
+
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+
+        // --- LOGIKA USER (SAMA SEPERTI SEBELUMNYA) ---
         function generateShortId(length = 5) {
             const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
             let result = '';
@@ -270,7 +373,6 @@
             if(!text.trim()) return showToast("Teks kosong!", true);
             setLoading(btn, true);
 
-            // Panggil fungsi Firebase dari module script
             const result = await window.fbSaveData(text, pass, days);
 
             if(result.success) {
@@ -291,7 +393,6 @@
             if(!code) return showToast("Masukkan kode!", true);
             setLoading(btn, true);
 
-            // Panggil fungsi Firebase
             const result = await window.fbLoadData(code, pass);
 
             if(result.success) {
