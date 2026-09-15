@@ -3,390 +3,381 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SecureTextKeep - Simpan Teks dengan Password</title>
-    <!-- Menggunakan Font Inter -->
+    <title>TextKeep PRO - Unlimited Length</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Library Kompresi (LZString) -->
+    <!-- LZString -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
-    <!-- Library Enkripsi (CryptoJS untuk AES) -->
+    <!-- CryptoJS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
     <style>
         :root {
-            --primary-color: #4F46E5;
+            --primary: #4F46E5;
             --primary-hover: #4338ca;
-            --bg-color: #F3F4F6;
-            --card-bg: #ffffff;
-            --text-main: #1F2937;
-            --text-muted: #6B7280;
-            --border-color: #E5E7EB;
-            --success-color: #10B981;
-            --error-color: #EF4444;
+            --bg: #F3F4F6;
+            --card: #ffffff;
+            --text: #1F2937;
+            --border: #E5E7EB;
+            --success: #10B981;
+            --error: #EF4444;
             --radius: 12px;
-            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
-
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
+            font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text);
+            min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 20px;
         }
 
         .container {
-            width: 100%;
-            max-width: 600px;
-            background: var(--card-bg);
-            padding: 2rem;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            animation: fadeIn 0.5s ease;
-            transition: opacity 0.3s ease; /* Transisi halus saat opacity berubah */
+            width: 100%; max-width: 650px; background: var(--card); padding: 2rem;
+            border-radius: var(--radius); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
         }
 
-        header { text-align: center; margin-bottom: 1.5rem; }
-        header h1 {
-            font-size: 1.8rem;
-            color: var(--primary-color);
-            margin-bottom: 0.5rem;
-            display: flex; align-items: center; justify-content: center; gap: 10px;
-        }
-        header p { color: var(--text-muted); font-size: 0.95rem; }
+        h1 { color: var(--primary); display: flex; align-items: center; gap: 10px; margin-bottom: 0.5rem; }
+        .subtitle { color: #6B7280; font-size: 0.9rem; margin-bottom: 1.5rem; }
 
-        /* Forms */
         .form-group { margin-bottom: 1rem; }
-        label { display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.9rem; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.9rem; }
         
-        input[type="password"], textarea {
-            width: 100%;
-            padding: 0.75rem;
-            border: 2px solid var(--border-color);
-            border-radius: 8px;
-            font-family: inherit;
-            font-size: 1rem;
-            transition: border-color 0.2s;
-            outline: none;
+        textarea, input[type="text"], input[type="password"] {
+            width: 100%; padding: 0.75rem; border: 2px solid var(--border);
+            border-radius: 8px; font-family: monospace; font-size: 0.9rem; outline: none;
         }
+        textarea { height: 150px; resize: vertical; font-family: inherit; font-size: 1rem;}
+        textarea:focus, input:focus { border-color: var(--primary); }
 
-        textarea { height: 180px; resize: vertical; line-height: 1.5; }
+        /* Tabs Switcher */
+        .switcher { display: flex; background: #E0E7FF; padding: 4px; border-radius: 8px; margin-bottom: 1rem; }
+        .switch-btn {
+            flex: 1; border: none; background: transparent; padding: 8px; border-radius: 6px;
+            cursor: pointer; font-weight: 600; font-size: 0.9rem; color: #4B5563; transition: 0.2s;
+        }
+        .switch-btn.active { background: white; color: var(--primary); shadow: 0 1px 2px rgba(0,0,0,0.1); }
+
+        .btn { 
+            padding: 0.75rem 1.2rem; border-radius: 8px; border: none; cursor: pointer; 
+            font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s;
+        }
+        .btn-primary { background: var(--primary); color: white; flex: 1; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-secondary { background: white; border: 2px solid var(--border); color: var(--text); }
         
-        input:focus, textarea:focus {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        .result-box {
+            display: none; margin-top: 1.5rem; background: #F9FAFB; border: 1px solid var(--border);
+            padding: 1rem; border-radius: 8px; animation: fadeIn 0.3s;
         }
-
-        /* Buttons */
-        .btn-group { display: flex; gap: 10px; margin-top: 1.5rem; }
+        .result-box h3 { font-size: 1rem; margin-bottom: 0.5rem; display: flex; justify-content: space-between; }
         
-        button {
-            display: inline-flex; align-items: center; justify-content: center;
-            padding: 0.75rem 1.5rem; font-size: 1rem; font-weight: 600;
-            border-radius: 8px; border: none; cursor: pointer;
-            transition: all 0.2s; gap: 8px; color: white;
-        }
-
-        .btn-primary { background-color: var(--primary-color); flex: 1; }
-        .btn-primary:hover { background-color: var(--primary-hover); }
-        
-        .btn-secondary { background-color: white; border: 2px solid var(--border-color); color: var(--text-main); }
-        .btn-secondary:hover { background-color: #F9FAFB; border-color: #D1D5DB; }
-
-        .btn-copy { background-color: var(--success-color); }
-        .btn-copy:hover { background-color: #059669; }
-
-        /* Result Area */
-        #result-area { display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color); }
-        .url-box { display: flex; gap: 8px; margin-top: 0.5rem; }
-        .url-display {
-            flex: 1; padding: 0.5rem; background: #F9FAFB; border: 1px solid var(--border-color);
-            border-radius: 6px; font-family: monospace; font-size: 0.85rem; color: var(--text-muted);
-        }
-
-        /* Password Lock Screen Overlay */
+        /* Overlay Lock */
         #lock-overlay {
-            display: none;
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255, 255, 255, 0.95);
-            z-index: 100;
-            align-items: center; justify-content: center;
+            display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.95);
+            z-index: 100; align-items: center; justify-content: center;
         }
         .lock-card {
             background: white; padding: 2rem; border-radius: var(--radius);
             box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); width: 90%; max-width: 400px; text-align: center;
-            border: 1px solid var(--border-color);
         }
 
-        /* Toast */
-        .toast {
-            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px);
-            background: #1F2937; color: white; padding: 12px 24px; border-radius: 50px;
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); opacity: 0; transition: all 0.4s; z-index: 1000;
+        /* Warning Box */
+        .warning-box {
+            background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B;
+            padding: 0.75rem; border-radius: 8px; font-size: 0.85rem; margin-top: 0.5rem;
+            display: none; align-items: center; gap: 8px;
         }
-        .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
-        .toast.success { background: var(--success-color); }
-        .toast.error { background: var(--error-color); }
-
-        .icon { width: 20px; height: 20px; fill: currentColor; }
-        .hidden { display: none !important; }
-
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <!-- Main Editor -->
-    <main class="container" id="main-ui">
-        <header>
-            <h1>
-                <svg class="icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-                SecureTextKeep
-            </h1>
-            <p id="app-desc">Tulis teks, atur password, dan bagikan linknya.</p>
-        </header>
+    <div class="container">
+        <h1>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/></svg>
+            TextKeep PRO
+        </h1>
+        <p class="subtitle">Simpan teks panjang tanpa takut terpotong.</p>
 
-        <section>
+        <!-- Mode Switcher -->
+        <div class="switcher">
+            <button class="switch-btn active" onclick="switchMode('create')">Mode Tulis</button>
+            <button class="switch-btn" onclick="switchMode('open')">Mode Buka (Paste Kode)</button>
+        </div>
+
+        <!-- SECTION: CREATE (Tulis) -->
+        <div id="section-create">
             <div class="form-group">
-                <label for="textInput">Isi Teks</label>
-                <textarea id="textInput" placeholder="Ketik rahasia di sini..."></textarea>
+                <label>Isi Teks</label>
+                <textarea id="textInput" placeholder="Paste teks panjang di sini..."></textarea>
+                <div id="lengthWarning" class="warning-box">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                    Teks terlalu panjang untuk Link. Gunakan menu "Kode Data" agar aman.
+                </div>
             </div>
             
-            <div class="form-group" id="passwordGroup">
-                <label for="passwordInput">Password (Opsional)</label>
-                <input type="password" id="passwordInput" placeholder="Kosongkan jika tidak ingin diproteksi">
+            <div class="form-group">
+                <label>Password (Opsional)</label>
+                <input type="password" id="passwordInput" placeholder="Kosongkan jika tidak diproteksi">
             </div>
-        </section>
 
-        <div class="btn-group">
-            <button id="saveBtn" class="btn-primary">
-                <svg class="icon" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/></svg>
-                Buat Link Aman
-            </button>
-            <button id="clearBtn" class="btn-secondary">Reset</button>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-primary" onclick="processData('url')">Buat Link</button>
+                <button class="btn btn-secondary" onclick="processData('code')">Buat Kode Data</button>
+            </div>
         </div>
 
-        <!-- Result Section -->
-        <div id="result-area">
-            <label>Link Siap Dibagikan:</label>
-            <div class="url-box">
-                <input type="text" id="outputUrl" class="url-display" readonly>
-                <button id="copyBtn" class="btn-copy">
-                    <svg class="icon" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
-                Salin
-                </button>
+        <!-- SECTION: OPEN (Buka) -->
+        <div id="section-open" style="display: none;">
+            <div class="form-group">
+                <label>Tempel Kode Data / Link di sini</label>
+                <textarea id="inputOpen" placeholder="Tempel string kode panjang atau link lengkap di sini..." style="height: 100px;"></textarea>
             </div>
-            <p style="margin-top: 8px; font-size: 0.8rem; color: var(--text-muted);">
-                *Beritahu penerima password Anda secara terpisah jika Anda mengisinya.
-            </p>
+            <div class="form-group" id="openPassGroup" style="display:none;">
+                <label>Password Diperlukan</label>
+                <input type="password" id="openPassword" placeholder="Masukkan password...">
+            </div>
+            <button class="btn btn-primary" onclick="openData()" style="width: 100%;">Buka Data</button>
         </div>
-    </main>
 
-    <!-- Password Lock Overlay (Muncul saat membuka link yang diproteksi) -->
+        <!-- RESULT AREA -->
+        <div id="resultArea" class="result-box">
+            <h3 id="resultTitle">Hasil:</h3>
+            <textarea id="outputResult" readonly style="height: 80px; background: white; border-color: #D1D5DB;"></textarea>
+            
+            <div style="margin-top: 10px; display: flex; gap: 10px;">
+                <button class="btn btn-secondary" onclick="copyOutput()" style="flex:1;">Salin</button>
+                <button id="downloadBtn" class="btn btn-secondary" style="display:none;" onclick="downloadText()">Download .txt</button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Lock Overlay (Hanya muncul jika hash URL terdeteksi saat load) -->
     <div id="lock-overlay">
         <div class="lock-card">
-            <div style="color: var(--primary-color); margin-bottom: 1rem;">
-                <svg style="width: 48px; height: 48px;" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+            <div style="color: var(--primary); margin-bottom: 1rem;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
             </div>
-            <h2 style="margin-bottom: 0.5rem;">Diproteksi Password</h2>
-            <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Teks ini terkunci. Masukkan password untuk melihat isinya.</p>
-            <input type="password" id="unlockPassword" placeholder="Masukkan Password..." style="margin-bottom: 1rem;">
-            <button id="unlockBtn" class="btn-primary" style="width: 100%;">Buka Teks</button>
+            <h2>Diproteksi Password</h2>
+            <p style="color: #6B7280; margin-bottom: 1rem;">Masukkan password untuk membuka teks ini.</p>
+            <input type="password" id="overlayPass" style="margin-bottom: 1rem;">
+            <button class="btn btn-primary" style="width: 100%;" onclick="unlockOverlay()">Buka</button>
         </div>
     </div>
 
-    <div id="toast" class="toast">Notifikasi</div>
-
     <script>
-        // DOM Elements
+        // --- VARIABEL ---
         const textInput = document.getElementById('textInput');
         const passwordInput = document.getElementById('passwordInput');
-        const saveBtn = document.getElementById('saveBtn');
-        const clearBtn = document.getElementById('clearBtn');
-        const copyBtn = document.getElementById('copyBtn');
-        const outputUrl = document.getElementById('outputUrl');
-        const resultArea = document.getElementById('result-area');
-        const lockOverlay = document.getElementById('lock-overlay');
-        const unlockBtn = document.getElementById('unlockBtn');
-        const unlockPassword = document.getElementById('unlockPassword');
-        const mainUI = document.getElementById('main-ui');
-        const toast = document.getElementById('toast');
-
-        // Toast Function
-        function showToast(msg, type = 'default') {
-            toast.textContent = msg;
-            toast.className = `toast show ${type}`;
-            setTimeout(() => toast.className = 'toast', 3000);
-        }
-
-        // --- FUNGSI SIMPAN & ENKRIPSI ---
-        saveBtn.addEventListener('click', () => {
-            const text = textInput.value;
-            const password = passwordInput.value;
-
-            if (!text.trim()) {
-                showToast("Teks tidak boleh kosong!", "error");
-                return;
-            }
-
-            try {
-                let finalData = "";
-
-                if (password) {
-                    // Jika ada password, Enkripsi dulu dengan AES menggunakan password
-                    // Menggunakan CryptoJS
-                    const encrypted = CryptoJS.AES.encrypt(text, password).toString();
-                    finalData = "1:" + encrypted; // Prefix '1' menandakan data terenkripsi
-                } else {
-                    // Jika tidak ada password, hanya kompresi biasa
-                    finalData = "0:" + text; // Prefix '0' menandakan data biasa
-                }
-
-                // Kompresi seluruh string (baik teks biasa maupun string terenkripsi)
-                // agar URL lebih pendek
-                const compressed = LZString.compressToEncodedURIComponent(finalData);
-                const newUrl = `${window.location.origin}${window.location.pathname}#${compressed}`;
-
-                // Tampilkan Hasil
-                outputUrl.value = newUrl;
-                resultArea.style.display = 'block';
-                showToast("Link berhasil dibuat!", "success");
-
-            } catch (e) {
-                console.error(e);
-                showToast("Gagal memproses data.", "error");
+        const resultArea = document.getElementById('resultArea');
+        const outputResult = document.getElementById('outputResult');
+        const lengthWarning = document.getElementById('lengthWarning');
+        
+        // --- CEK PANJANG TEKS REALTIME ---
+        textInput.addEventListener('input', () => {
+            // Batas aman URL sekitar 2000 char (setelah kompresi)
+            // Estimasi kasar: jika teks > 1500 char, potensi besar link akan panjang
+            if (textInput.value.length > 1500) {
+                lengthWarning.style.display = 'flex';
+            } else {
+                lengthWarning.style.display = 'none';
             }
         });
 
-        // --- FUNGSI BUKA & DEKRIPSI ---
-        unlockBtn.addEventListener('click', () => {
-            const pass = unlockPassword.value;
-            const hash = window.location.hash.substring(1);
-            
-            if(!hash) return;
+        // --- PROSES DATA (SAVE) ---
+        function processData(type) {
+            const text = textInput.value;
+            const pass = passwordInput.value;
 
-            try {
-                // 1. Dekompresi dari URL
-                const decompressed = LZString.decompressFromEncodedURIComponent(hash);
+            if(!text.trim()) return alert("Teks kosong!");
+
+            let payload = "";
+            // Format Payload: "MODE:ENCRYPTED_DATA"
+            // MODE 0 = No Pass, MODE 1 = Has Pass
+
+            if (pass) {
+                const enc = CryptoJS.AES.encrypt(text, pass).toString();
+                payload = "1:" + enc;
+            } else {
+                payload = "0:" + text;
+            }
+
+            // Kompresi payload
+            const compressed = LZString.compressToEncodedURIComponent(payload);
+            let result = "";
+
+            if (type === 'url') {
+                // Cek batas URL browser (2.000 char biasanya aman untuk share link biasa)
+                // Tapi kita pakai 2000 sebagai batas peringatan keras
+                const fullUrl = window.location.href.split('#')[0] + "#" + compressed;
                 
-                if (!decompressed) {
-                    showToast("Data rusak.", "error");
+                if (fullUrl.length > 2000) {
+                    alert("PERINGATAN: Teks terlalu panjang untuk dijadikan Link.\n\nLink akan terpotong dan gagal dibuka.\n\nGunakan tombol 'Buat Kode Data' sebagai gantinya.");
                     return;
                 }
+                result = fullUrl;
+                document.getElementById('resultTitle').textContent = "Link Pendek:";
+                document.getElementById('downloadBtn').style.display = 'none';
+            } else {
+                // Mode Kode Data (Unlimited)
+                result = compressed;
+                document.getElementById('resultTitle').textContent = "Kode Data (Salin ini):";
+                document.getElementById('downloadBtn').style.display = 'none';
+            }
 
-                // 2. Cek Prefix (0 atau 1)
+            outputResult.value = result;
+            resultArea.style.display = 'block';
+        }
+
+        // --- BUKA DATA (OPEN) ---
+        function openData() {
+            const inputStr = document.getElementById('inputOpen').value.trim();
+            const pass = document.getElementById('openPassword').value;
+
+            if(!inputStr) return alert("Input kosong!");
+
+            // Cek apakah input berupa URL lengkap atau kode mentah
+            let hash = "";
+            if (inputStr.includes('#')) {
+                hash = inputStr.split('#')[1];
+            } else {
+                hash = inputStr;
+            }
+
+            try {
+                const decompressed = LZString.decompressFromEncodedURIComponent(hash);
+                if(!decompressed) throw new Error("Data rusak atau kode salah.");
+
                 const parts = decompressed.split(':');
-                const mode = parts[0]; // '0' = No Pass, '1' = Has Pass
-                const dataContent = parts.slice(1).join(':'); // Sisanya adalah konten
+                const mode = parts[0];
+                const content = parts.slice(1).join(':');
 
                 let finalText = "";
 
                 if (mode === '1') {
-                    // Mode Terenkripsi
-                    if (!pass) {
-                        showToast("Masukkan password!", "error");
+                    // Butuh Password
+                    if(!pass) {
+                        document.getElementById('openPassGroup').style.display = 'block';
+                        document.getElementById('openPassword').focus();
+                        alert("Data ini diproteksi password. Silakan isi password.");
                         return;
                     }
-                    // Dekripsi AES
-                    const bytes = CryptoJS.AES.decrypt(dataContent, pass);
+                    const bytes = CryptoJS.AES.decrypt(content, pass);
                     const originalText = bytes.toString(CryptoJS.enc.Utf8);
-
-                    if (originalText) {
+                    
+                    if(originalText) {
                         finalText = originalText;
-                        // Berhasil Buka
-                        lockOverlay.style.display = 'none';
-                        mainUI.style.opacity = '1'; // <--- PERBAIKAN DI SINI: Kembalikan opacity ke solid (1)
-                        renderViewMode(finalText);
-                        showToast("Teks berhasil dibuka!", "success");
+                        showOpenResult(finalText);
                     } else {
-                        // Password Salah
-                        showToast("Password Salah!", "error");
-                        unlockPassword.value = '';
-                        unlockPassword.focus();
+                        alert("Password SALAH!");
                     }
-
-                } else if (mode === '0') {
-                    // Mode Biasa
-                    finalText = dataContent;
-                    lockOverlay.style.display = 'none';
-                    renderViewMode(finalText);
+                } else {
+                    finalText = content;
+                    showOpenResult(finalText);
                 }
 
             } catch (e) {
-                showToast("Gagal membuka teks.", "error");
-                console.error(e);
+                alert("Gagal membuka data. Pastikan kode yang ditempel benar.");
             }
-        });
-
-        // --- RENDER MODE BACA ---
-        function renderViewMode(text) {
-            textInput.value = text;
-            textInput.readOnly = true; // Kunci agar tidak diedit
-            textInput.style.backgroundColor = "#F9FAFB";
-            
-            // Ubah tampilan UI
-            document.getElementById('passwordGroup').style.display = 'none';
-            document.getElementById('app-desc').textContent = "Anda sedang melihat pesan yang dibagikan.";
-            saveBtn.style.display = 'none';
-            
-            // Ubah tombol reset jadi "Buat Baru"
-            clearBtn.textContent = "Tulis Pesan Baru";
-            clearBtn.onclick = () => {
-                window.location.href = window.location.pathname; // Reload bersih
-            };
         }
 
-        // --- INIT: CHECK URL SAAT LOAD ---
-        window.addEventListener('DOMContentLoaded', () => {
-            const hash = window.location.hash.substring(1);
+        function showOpenResult(text) {
+            outputResult.value = text;
+            document.getElementById('resultTitle').textContent = "Isi Teks:";
+            document.getElementById('downloadBtn').style.display = 'inline-flex';
+            resultArea.style.display = 'block';
+            // Scroll ke hasil
+            resultArea.scrollIntoView({ behavior: 'smooth' });
+        }
 
-            if (hash) {
+        // --- UTILS ---
+        function copyOutput() {
+            outputResult.select();
+            document.execCommand('copy');
+            alert("Berhasil disalin!");
+        }
+
+        function downloadText() {
+            const text = outputResult.value;
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `textkeep-${Date.now()}.txt`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        // --- TAB SWITCHING ---
+        function switchMode(mode) {
+            document.querySelectorAll('.switch-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('#section-create, #section-open').forEach(d => d.style.display = 'none');
+            resultArea.style.display = 'none';
+
+            if(mode === 'create') {
+                document.querySelector('.switch-btn:nth-child(1)').classList.add('active');
+                document.getElementById('section-create').style.display = 'block';
+            } else {
+                document.querySelector('.switch-btn:nth-child(2)').classList.add('active');
+                document.getElementById('section-open').style.display = 'block';
+            }
+        }
+
+        // --- INIT CHECK URL (Otomatis buka jika ada hash di URL saat load) ---
+        window.addEventListener('load', () => {
+            if(window.location.hash) {
+                const hash = window.location.hash.substring(1);
                 try {
-                    // Cek dulu apakah data valid dengan dekompresi ringan
+                    // Cek cepat validitas data
                     const decompressed = LZString.decompressFromEncodedURIComponent(hash);
-                    
-                    if (!decompressed) throw new Error("Invalid Hash");
-
-                    const mode = decompressed.split(':')[0];
-
-                    if (mode === '1') {
-                        // Data Terenkripsi -> Tampilkan Lock Screen
-                        lockOverlay.style.display = 'flex';
-                        // Sembunyikan editor asli di belakang layar (set opacity jadi 0.1)
-                        mainUI.style.opacity = '0.1'; 
-                    } else if (mode === '0') {
-                        // Data Biasa -> Langsung Tampilkan
-                        const content = decompressed.split(':').slice(1).join(':');
-                        renderViewMode(content);
+                    if(decompressed) {
+                        const mode = decompressed.split(':')[0];
+                        if(mode === '1') {
+                            // Tampilkan overlay lock
+                            document.getElementById('lock-overlay').style.display = 'flex';
+                        } else {
+                            // Langsung buka di mode view
+                            switchMode('open');
+                            document.getElementById('inputOpen').value = window.location.href;
+                            openData();
+                        }
                     }
-
-                } catch (e) {
-                    showToast("Link tidak valid.", "error");
-                }
+                } catch(e) {}
             }
         });
 
-        // Copy Link
-        copyBtn.addEventListener('click', () => {
-            outputUrl.select();
-            navigator.clipboard.writeText(outputUrl.value).then(() => showToast("Link disalin!", "success"));
-        });
+        function unlockOverlay() {
+            const pass = document.getElementById('overlayPass').value;
+            const hash = window.location.hash.substring(1);
+            
+            try {
+                const decompressed = LZString.decompressFromEncodedURIComponent(hash);
+                const parts = decompressed.split(':');
+                const mode = parts[0];
+                const content = parts.slice(1).join(':');
 
-        // Reset
-        clearBtn.addEventListener('click', () => {
-             textInput.value = '';
-             passwordInput.value = '';
-             resultArea.style.display = 'none';
-             textInput.focus();
-        });
+                if(mode === '1') {
+                    const bytes = CryptoJS.AES.decrypt(content, pass);
+                    const originalText = bytes.toString(CryptoJS.enc.Utf8);
+
+                    if(originalText) {
+                        document.getElementById('lock-overlay').style.display = 'none';
+                        switchMode('open');
+                        document.getElementById('inputOpen').value = window.location.href;
+                        // Isi password di form open
+                        document.getElementById('openPassword').value = pass;
+                        openData(); // Trigger open
+                    } else {
+                        alert("Password Salah!");
+                    }
+                }
+            } catch(e) {
+                alert("Error!");
+            }
+        }
 
     </script>
 </body>
